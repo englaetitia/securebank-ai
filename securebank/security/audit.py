@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     role          TEXT,
     intent        TEXT,
     params_json   TEXT,
-    decision      TEXT NOT NULL,   -- allowed / denied / invalid / unsupported / error
+    decision      TEXT NOT NULL,   -- allowed / denied / invalid / unsupported / blocked / error
     reason_code   TEXT NOT NULL,
     row_count     INTEGER,
     latency_ms    INTEGER,
@@ -38,8 +38,8 @@ def question_hash(question: str | None) -> str | None:
 
 
 class AuditLog:
-    def __init__(self, db_path: Path = AUDIT_DB_PATH):
-        self.conn: sqlite3.Connection = get_audit_connection(db_path)
+    def __init__(self, db_path: Path = AUDIT_DB_PATH, check_same_thread: bool = True):
+        self.conn: sqlite3.Connection = get_audit_connection(db_path, check_same_thread)
         self.conn.execute(SCHEMA)
         self.conn.commit()
 

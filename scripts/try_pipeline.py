@@ -17,6 +17,7 @@ from securebank.auth.auth import authenticate  # noqa: E402
 from securebank.db.connection import get_readonly_connection  # noqa: E402
 from securebank.pipeline import handle_request  # noqa: E402
 from securebank.security.audit import AuditLog  # noqa: E402
+from securebank.security.output_guard import KnownPII  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument("username", nargs="?")
@@ -42,5 +43,5 @@ if session is None:
 print(f"Logged in as {session.username} (role: {session.role})\n")
 
 params = dict(p.split("=", 1) for p in args.params)
-response = handle_request(session, args.intent, params, conn, audit)
+response = handle_request(session, args.intent, params, conn, audit, known_pii=KnownPII(conn))
 print(f"[{response.status}] {response.message}")

@@ -6,9 +6,9 @@ A privacy-preserving Generative AI assistant for banking information retrieval
 ## Setup (Windows, PowerShell)
 
 ```powershell
-py -3.12 -m venv .venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install torch --index-url https://download.pytorch.org/whl/cu126
+pip install torch --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 python -m securebank.db.seed      # builds data/bank.db
 python -m pytest                  # runs the tests

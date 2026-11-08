@@ -22,7 +22,7 @@ else:
 
 t0 = time.time()
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=dtype).to(device)
+model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, dtype=dtype).to(device)
 print(f"Model loaded in {time.time() - t0:.1f} s")
 
 messages = [
