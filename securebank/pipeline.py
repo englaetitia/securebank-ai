@@ -16,6 +16,7 @@ from securebank.security.audit import AuditLog
 from securebank.security.input_guard import InputRejected, clean_question
 from securebank.security.masking import sanitize_result
 from securebank.security.output_guard import KnownPII, check_answer
+from securebank.security.request_guard import asks_about_a_person
 from securebank.security.rbac import authorize, help_text
 
 SAFE_FALLBACK = ("I found the information, but I can't show this answer because it did not "
@@ -131,6 +132,15 @@ def ask(session: Session | None, question: str, parser, bank_conn: sqlite3.Conne
 
     if session is None:  # do not spend LLM time on users who are not logged in
         return handle_request(None, "help", {}, bank_conn, audit, question=question)
+
+    # Questions about specific people are refused before any parser runs (day 12)
+    reason = asks_about_a_person(question, known_pii)
+    if reason:
+        response = handle_request(session, "restricted_request", {}, bank_conn, audit, question=question)
+        response.details = {"parser": "request_guard", "attempts": 0, "parse_ms": 0,
+                            "raw_output": None, "error": None, "guard_reason": reason,
+                            "intent": "restricted_request", "params": {}}
+        return response
 
     outcome = parser.parse(question)
     details = {"parser": outcome.source, "attempts": outcome.attempts,

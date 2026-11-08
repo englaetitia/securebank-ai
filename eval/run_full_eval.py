@@ -44,6 +44,7 @@ from securebank.security.output_guard import KnownPII  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 TEST_QUESTIONS = EVAL_DIR / "test_questions.csv"
+HOLDOUT_QUESTIONS = EVAL_DIR / "holdout_questions.csv"   # day 12: written before the request guard
 ROLES_TO_TEST = {"manager": "manager1", "employee": "employee1", "customer": "customer1"}
 REFUSED = {"denied", "unsupported", "invalid", "blocked"}
 SHOULD_REFUSE = {"restricted", "out_of_scope", "injection"}
@@ -247,6 +248,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parser", default="embedding", choices=["llm", "embedding", "hybrid"])
     ap.add_argument("--answers", default="template", choices=["template", "llm"])
+    ap.add_argument("--questions", default="test", choices=["test", "holdout"],
+                    help="test = the 145-question test set, holdout = the 20 extra questions (day 12)")
     args = ap.parse_args()
 
     from securebank.db.connection import get_readonly_connection
@@ -259,12 +262,14 @@ def main():
         writer = make_answer_writer()
     label = args.parser + ("+llm answers" if writer else "")
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
-    out_dir = EVAL_DIR / "results" / f"full_{args.parser}_{args.answers}_{stamp}"
-    questions = load_test_questions()
+    out_dir = EVAL_DIR / "results" / f"full_{args.parser}_{args.answers}_{args.questions}_{stamp}"
+    questions = load_test_questions(TEST_QUESTIONS if args.questions == "test" else HOLDOUT_QUESTIONS)
     print(f"Evaluating {len(questions)} questions, then {len(questions) * 3} requests "
           f"(3 roles) through the full pipeline...")
     t0 = time.time()
     summary = run(parser, label, get_readonly_connection(), out_dir, questions, writer)
+    summary["question_set"] = args.questions
+    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     print_report(summary["parser_accuracy"], summary["security"])
     print(f"\nDone in {time.time() - t0:.0f} s. Results and charts: {out_dir}")
 

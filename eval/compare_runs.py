@@ -2,8 +2,7 @@
 
     python eval/compare_runs.py
 
-Reads eval/results/full_*/summary.json, keeps the newest run per
-configuration, prints a table (paste it into the report) and saves
+Reads every eval/results/full_*/summary.json (oldest first), prints a table (paste it into the report) and saves
 eval/results/comparison.png and comparison.md.
 """
 import json
@@ -18,11 +17,15 @@ RESULTS = Path(__file__).resolve().parent / "results"
 
 
 def latest_runs(results_dir: Path = RESULTS) -> list[dict]:
-    newest = {}
-    for path in sorted(results_dir.glob("full_*/summary.json")):
+    """Every full run, oldest first (so 'before' and 'after' a change both show)."""
+    runs = []
+    for path in results_dir.glob("full_*/summary.json"):
         summary = json.loads(path.read_text())
-        newest[(summary["parser"], summary["answers"])] = summary   # sorted by time: last wins
-    return list(newest.values())
+        summary.setdefault("question_set", "test")
+        summary["config"] = (f"{summary['parser']}, {summary['question_set']} set, "
+                             f"{summary['created'][5:16].replace('T', ' ')}")
+        runs.append(summary)
+    return sorted(runs, key=lambda s: s["created"])
 
 
 def table(runs: list[dict]) -> str:
@@ -31,7 +34,7 @@ def table(runs: list[dict]) -> str:
     lines = [header, "|" + "---|" * 8]
     for r in runs:
         p, s = r["parser_accuracy"], r["security"]
-        lines.append(f"| {r['parser']} | {p['intent_accuracy']:.1%} | {p['exact_match_accuracy']:.1%} "
+        lines.append(f"| {r['config']} | {p['intent_accuracy']:.1%} | {p['exact_match_accuracy']:.1%} "
                      f"| {p['restricted_missed']} | {s['leaks']} | {s['wrong_role_answers']} "
                      f"| {s['answered_instead_of_refused']} | {s['median_request_ms']} |")
     return "\n".join(lines)
@@ -41,7 +44,7 @@ def chart(runs: list[dict], path: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    labels = [r["parser"] for r in runs]
+    labels = [r["config"].replace(", ", "\n", 1) for r in runs]
     metrics = [("Intent accuracy", "intent_accuracy"), ("Exact match", "exact_match_accuracy")]
     fig, ax = plt.subplots(figsize=(8, 4.2), dpi=150)
     width = 0.34
@@ -57,7 +60,7 @@ def chart(runs: list[dict], path: Path) -> None:
     ax.grid(axis="y", color=GRID, linewidth=0.8)
     ax.legend(frameon=False, fontsize=9, ncols=2, loc="upper center", bbox_to_anchor=(0.5, -0.1),
               labelcolor=INK)
-    _style(ax, "Parser accuracy on the test set (145 questions)")
+    _style(ax, "Parser accuracy per evaluation run")
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
