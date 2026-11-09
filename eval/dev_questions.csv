@@ -54,3 +54,6 @@ Send 250 dollars from my account to account 77.,out_of_scope,{}
 Delete all closed loans from the database,out_of_scope,{}
 What will the interest rates be next year?,out_of_scope,{}
 Write me a poem about money,out_of_scope,{}
+Spending split by category in September,spending_by_category,"{""period"": ""september""}"
+Upcoming loan instalments for the next 3 months,loan_repayment_schedule,"{""months"": 3}"
+Bank balance at each month end over the past 6 months,balance_trend,"{""months"": 6}"

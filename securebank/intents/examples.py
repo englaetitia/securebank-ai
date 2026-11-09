@@ -5,12 +5,25 @@ intent of the most similar one. Keep them DIFFERENT from the evaluation
 questions in eval/dev_questions.csv.
 """
 from securebank.intents.catalog import INTENTS
+from securebank.intents.examples_i18n import ARABIC_EXAMPLES, FRENCH_EXAMPLES
 
 EXTRA_EXAMPLES = {
+    "spending_by_category": [
+        "Spending by category last month", "Breakdown of withdrawals by category in October",
+        "What do customers spend the most on?", "Total spending per category this year",
+    ],
+    "loan_repayment_schedule": [
+        "Loan repayment schedule", "Upcoming loan instalments per month",
+        "How much will borrowers repay each month?", "Expected loan repayments over the next 12 months",
+    ],
+    "balance_trend": [
+        "Monthly history of the total balance", "Total bank balance at the end of each month",
+        "How has the balance changed month by month?", "Balance trend over the last 12 months",
+    ],
     "count_new_accounts": [
         "Number of accounts opened this year", "How many new checking accounts this week?",
         "Count of savings accounts created in September", "How many accounts did we open?",
-        "New account openings yesterday",
+        "New account openings yesterday", "Number of savings accounts opened in the last 90 days",
     ],
     "total_deposits": [
         "Sum of all deposits today", "Deposit volume for last month",
@@ -25,7 +38,8 @@ EXTRA_EXAMPLES = {
     "transaction_count": [
         "How many transactions happened this week?", "Number of withdrawals today",
         "Transaction volume last month", "How many deposits were processed yesterday?",
-        "Count all transactions in October",
+        "Count all transactions in October", "How many transactions did we handle in June?",
+        "Number of deposits in the last 3 days",
     ],
     "count_active_loans": [
         "Number of active loans", "How many customers are currently repaying a loan?",
@@ -42,11 +56,11 @@ EXTRA_EXAMPLES = {
     "total_loan_portfolio": [
         "Combined value of the active loans", "What do all current loans add up to?",
         "Total amount lent in active loans", "Sum of all active loan principals",
-        "What is the value of our outstanding loans?",
+        "What is the value of our outstanding loans?", "How much have we lent in total on running loans?",
     ],
     "total_balance_by_type": [
         "Total deposits held in savings accounts", "Sum of balances per account type",
-        "How much money do customers hold in checking accounts in total?",
+        "How much money do customers hold in checking accounts in total?", "Sum of all checking balances",
     ],
     "avg_account_balance": [
         "Average checking account balance", "Mean balance per account",
@@ -82,15 +96,27 @@ EXTRA_EXAMPLES = {
         "What will inflation be next month?", "Predict next year's deposits",
         "Transfer money to my friend", "Delete account 55", "Open a new account for me",
         "What's the euro exchange rate?", "Tell me a joke", "Change my password",
-        "Approve this loan application",
+        "Approve this loan application", "Write me a story about a bank", "Compose a song about savings",
+        "Who won the football match?", "Recommend a good restaurant",
     ],
 }
 
 
 def all_examples() -> list[tuple[str, str]]:
-    """(question, intent) pairs: the catalog examples plus the extra ones."""
+    """(question, intent) pairs: the catalog examples plus the extra, French and Arabic ones."""
     pairs = []
     for name, intent in INTENTS.items():
         pairs += [(q, name) for q in intent.examples]
         pairs += [(q, name) for q in EXTRA_EXAMPLES.get(name, [])]
+        pairs += [(q, name) for q in FRENCH_EXAMPLES.get(name, [])]
+        pairs += [(q, name) for q in ARABIC_EXAMPLES.get(name, [])]
     return pairs
+
+
+def example_in(intent_name: str, lang: str = "en") -> str:
+    """The example question shown for an intent (help text, sidebar, "Did you mean?")."""
+    if lang == "fr":
+        return FRENCH_EXAMPLES[intent_name][0]
+    if lang == "ar":
+        return ARABIC_EXAMPLES[intent_name][0]
+    return INTENTS[intent_name].examples[0]

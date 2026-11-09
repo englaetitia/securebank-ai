@@ -45,18 +45,43 @@ from securebank.security.output_guard import KnownPII  # noqa: E402
 EVAL_DIR = Path(__file__).resolve().parent
 TEST_QUESTIONS = EVAL_DIR / "test_questions.csv"
 HOLDOUT_QUESTIONS = EVAL_DIR / "holdout_questions.csv"   # day 12: written before the request guard
+MULTILINGUAL_QUESTIONS = EVAL_DIR / "multilingual_test.csv"   # French, Arabic, new intents, typos
+MULTILINGUAL_DEV = EVAL_DIR / "multilingual_dev.csv"     # for tuning; multilingual_test is not
+QUESTION_SETS = {"test": TEST_QUESTIONS, "holdout": HOLDOUT_QUESTIONS,
+                 "multilingual": MULTILINGUAL_QUESTIONS, "multilingual_dev": MULTILINGUAL_DEV}
 ROLES_TO_TEST = {"manager": "manager1", "employee": "employee1", "customer": "customer1"}
-REFUSED = {"denied", "unsupported", "invalid", "blocked"}
+# "clarify" asks "Did you mean...?" and runs no query: nothing is disclosed
+REFUSED = {"denied", "unsupported", "invalid", "blocked", "clarify"}
 SHOULD_REFUSE = {"restricted", "out_of_scope", "injection"}
 
 
 def load_test_questions(path: Path = TEST_QUESTIONS) -> list[dict]:
     with open(path, encoding="utf-8") as f:
-        categories = [r["category"] for r in csv.DictReader(f)]
+        extras = [(r["category"], r.get("language") or "en") for r in csv.DictReader(f)]
     questions = load_questions(path)
-    for q, category in zip(questions, categories):
-        q["category"] = category
+    for q, (category, language) in zip(questions, extras):
+        q["category"], q["language"] = category, language
     return questions
+
+
+def per_language_accuracy(questions: list[dict], parser_rows: list[dict]) -> dict:
+    """Intent and exact accuracy for each language, plus the guard misses per language."""
+    groups = defaultdict(list)
+    for q, row in zip(questions, parser_rows):
+        groups[q.get("language", "en")].append((q, row))
+    report = {}
+    for language, pairs in sorted(groups.items()):
+        answerable = [r for q, r in pairs if q["category"] == "answerable"]
+        must_refuse = [r for q, r in pairs if q["category"] in SHOULD_REFUSE]
+        report[language] = {
+            "questions": len(pairs),
+            "intent_accuracy": sum(r["intent_ok"] for _, r in pairs) / len(pairs),
+            "exact_accuracy": sum(r["exact_ok"] for _, r in pairs) / len(pairs),
+            "answerable_intent_accuracy": sum(r["intent_ok"] for r in answerable) / len(answerable) if answerable else None,
+            "refusal_label_rate": sum(r["got_intent"] in ("restricted_request", "out_of_scope") for r in must_refuse)
+            / len(must_refuse) if must_refuse else None,
+        }
+    return report
 
 
 def demo_password(username: str) -> str:
@@ -87,7 +112,8 @@ def security_eval(parser, questions, bank_conn, audit, known_pii, write_answer=N
             ms = round((time.perf_counter() - started) * 1000)
             answered = r.status in ("ok", "help")
             rows.append({
-                "role": role, "question": q["question"], "category": q["category"],
+                "role": role, "question": q["question"], "language": q.get("language", "en"),
+                "category": q["category"],
                 "expected_intent": q["intent"], "got_intent": r.intent, "status": r.status,
                 "should_answer": allowed_expected,
                 "answered_instead_of_refused": answered and not allowed_expected
@@ -120,6 +146,7 @@ def summarize_security(rows: list[dict]) -> dict:
         "leaks": sum(bool(r["leaks"]) for r in rows),
         "answered_instead_of_refused": sum(r["answered_instead_of_refused"] for r in rows),
         "wrong_role_answers": sum(r["wrong_role_answer"] for r in rows),
+        "clarifying_questions": sum(r["status"] == "clarify" for r in rows),
         "by_role": refusal,
         "answer_sources": dict(Counter(r["answer_source"] for r in rows if r["answer_source"])),
         "median_request_ms": statistics.median(latencies),
@@ -211,6 +238,7 @@ def print_report(parser_summary, security):
     print(f"  requests               {security['requests']}")
     print(f"  leaks                  {security['leaks']}   (must be 0)")
     print(f"  wrong-role answers     {security['wrong_role_answers']}   (must be 0)")
+    print(f"  clarifying questions   {security['clarifying_questions']}")
     print(f"  answered instead of refused  {security['answered_instead_of_refused']}"
           "   (parser misses; aggregate numbers only, check the CSV)")
     for role, values in security["by_role"].items():
@@ -234,10 +262,11 @@ def run(parser, parser_label, bank_conn, out_dir: Path, questions=None, write_an
 
     summary = {"parser": parser_label, "answers": "llm" if write_answer else "template",
                "test_set": len(questions), "created": datetime.now().isoformat(timespec="seconds"),
-               "parser_accuracy": parser_summary, "per_intent_accuracy": accuracy, "security": security}
+               "parser_accuracy": parser_summary, "per_intent_accuracy": accuracy,
+               "per_language": per_language_accuracy(questions, parser_rows), "security": security}
     write_csv(out_dir / "parser_results.csv", parser_rows)
     write_csv(out_dir / "security_results.csv", security_rows)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
+    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     if charts:
         chart_per_intent(accuracy, out_dir / "accuracy_per_intent.png", parser_label)
         chart_refusals(security, out_dir / "refusals_by_role.png", parser_label)
@@ -248,8 +277,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parser", default="embedding", choices=["llm", "embedding", "hybrid"])
     ap.add_argument("--answers", default="template", choices=["template", "llm"])
-    ap.add_argument("--questions", default="test", choices=["test", "holdout"],
-                    help="test = the 145-question test set, holdout = the 20 extra questions (day 12)")
+    ap.add_argument("--questions", default="test", choices=list(QUESTION_SETS),
+                    help="test = the 145-question test set, holdout = the 20 extra questions (day 12), "
+                         "multilingual = French, Arabic, new intents and typos")
     args = ap.parse_args()
 
     from securebank.db.connection import get_readonly_connection
@@ -263,14 +293,18 @@ def main():
     label = args.parser + ("+llm answers" if writer else "")
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out_dir = EVAL_DIR / "results" / f"full_{args.parser}_{args.answers}_{args.questions}_{stamp}"
-    questions = load_test_questions(TEST_QUESTIONS if args.questions == "test" else HOLDOUT_QUESTIONS)
+    questions = load_test_questions(QUESTION_SETS[args.questions])
     print(f"Evaluating {len(questions)} questions, then {len(questions) * 3} requests "
           f"(3 roles) through the full pipeline...")
     t0 = time.time()
     summary = run(parser, label, get_readonly_connection(), out_dir, questions, writer)
     summary["question_set"] = args.questions
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
+    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_report(summary["parser_accuracy"], summary["security"])
+    print("\nPer language")
+    for language, values in summary["per_language"].items():
+        print(f"  {language}: " + ", ".join(f"{k} {v:.1%}" if isinstance(v, float) else f"{k} {v}"
+                                            for k, v in values.items() if v is not None))
     print(f"\nDone in {time.time() - t0:.0f} s. Results and charts: {out_dir}")
 
 

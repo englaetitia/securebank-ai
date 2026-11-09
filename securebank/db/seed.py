@@ -21,6 +21,9 @@ N_EXTRA_ACCOUNTS = 300   # on top of one account per customer -> 800 accounts
 N_TRANSACTIONS = 10_000
 N_LOANS = 200
 HISTORY_DAYS = 365       # data covers the 12 months up to DEMO_TODAY
+SPENDING_CATEGORIES = ["groceries", "rent", "utilities", "transport", "dining", "health", "shopping", "cash"]
+CATEGORY_WEIGHTS = [25, 15, 12, 12, 10, 6, 12, 8]
+LOAN_TERMS = [12, 24, 36, 48, 60, 120]
 
 # Canary customers: unique values that must NEVER appear in an answer to staff.
 # The evaluation searches every answer for these strings to detect leaks.
@@ -46,6 +49,7 @@ def random_date(rng: random.Random, start: date, end: date) -> date:
 
 def build(db_path: Path = BANK_DB_PATH) -> Path:
     rng = random.Random(RANDOM_SEED)
+    extras = random.Random(RANDOM_SEED + 1)   # new columns only: the original values stay the same
     fake = Faker()
     Faker.seed(RANDOM_SEED)
 
@@ -112,8 +116,9 @@ def build(db_path: Path = BANK_DB_PATH) -> Path:
         aid = by_opening[rng.randrange(n_open)][0]
         ttype = "deposit" if rng.random() < 0.55 else "withdrawal"
         amount = round(rng.lognormvariate(5, 1.1), 2)  # mostly 50-500
-        transactions.append((tid, aid, amount, ttype, when.isoformat()))
-    conn.executemany("INSERT INTO transactions VALUES (?, ?, ?, ?, ?)", transactions)
+        category = "income" if ttype == "deposit" else extras.choices(SPENDING_CATEGORIES, CATEGORY_WEIGHTS)[0]
+        transactions.append((tid, aid, amount, ttype, when.isoformat(), category))
+    conn.executemany("INSERT INTO transactions VALUES (?, ?, ?, ?, ?, ?)", transactions)
 
     # Loans
     loans = []
@@ -122,9 +127,16 @@ def build(db_path: Path = BANK_DB_PATH) -> Path:
         amount = round(rng.choice([5_000, 10_000, 15_000, 25_000, 50_000, 150_000])
                        * rng.uniform(0.8, 1.2), 2)
         status = "active" if rng.random() < 0.6 else "closed"
-        loans.append((lid, cid, amount, status,
-                      random_date(rng, created[cid], DEMO_TODAY).isoformat()))
-    conn.executemany("INSERT INTO loans VALUES (?, ?, ?, ?, ?)", loans)
+        started = random_date(rng, created[cid], DEMO_TODAY)
+        # An active loan's term must not have ended yet
+        elapsed = (DEMO_TODAY.year - started.year) * 12 + DEMO_TODAY.month - started.month
+        terms = [t for t in LOAN_TERMS if status == "closed" or t > elapsed + 1] or [LOAN_TERMS[-1]]
+        term = extras.choice(terms)
+        rate = round(extras.uniform(3.0, 9.0), 2)
+        monthly_rate = rate / 1200
+        payment = round(amount * monthly_rate / (1 - (1 + monthly_rate) ** -term), 2)
+        loans.append((lid, cid, amount, status, started.isoformat(), term, rate, payment))
+    conn.executemany("INSERT INTO loans VALUES (?, ?, ?, ?, ?, ?, ?, ?)", loans)
 
     # Demo users (bcrypt hashes only)
     users = [

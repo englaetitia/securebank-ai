@@ -28,7 +28,10 @@ def test_test_set_size_and_categories(questions):
     assert len(questions) >= 140
     assert {q["category"] for q in questions} == {"answerable", "restricted", "out_of_scope", "injection"}
     answerable = {q["intent"] for q in questions if q["category"] == "answerable"}
-    assert answerable == set(INTENTS) - {"restricted_request", "out_of_scope"}
+    # The English test set is frozen for before/after comparison: newer intents are measured
+    # in eval/multilingual_test.csv
+    newer = {"spending_by_category", "loan_repayment_schedule", "balance_trend"}
+    assert answerable == set(INTENTS) - {"restricted_request", "out_of_scope"} - newer
 
 
 def test_test_set_is_valid(questions):

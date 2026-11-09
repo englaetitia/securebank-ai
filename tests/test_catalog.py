@@ -201,9 +201,56 @@ def test_non_query_intents_cannot_run_sql(conn, name):
 
 # ---- Catalog rules -----------------------------------------------------------------
 
-def test_catalog_has_15_real_intents_plus_2_labels():
-    assert len(INTENTS) == 17
-    assert sum(1 for i in INTENTS.values() if i.allowed_roles) == 15
+def test_catalog_has_18_real_intents_plus_2_labels():
+    assert len(INTENTS) == 20
+    assert sum(1 for i in INTENTS.values() if i.allowed_roles) == 18
+
+
+# ---- New intents: SQL result == pandas result ---------------------------------------
+
+@pytest.mark.parametrize("period", ["this month", "last month", "October", "all time"])
+def test_spending_by_category(conn, df, period):
+    t = df["transactions"]
+    sel = t[(t.transaction_type == "withdrawal") & in_period(t.transaction_date, period)]
+    expected = sel.groupby("category").amount.sum().round(2).to_dict()
+    rows = run_intent(conn, "spending_by_category", {"period": period}).rows
+    assert {r["category"]: r["total_spent"] for r in rows} == pytest.approx(expected)
+    assert "income" not in {r["category"] for r in rows}
+
+
+@pytest.mark.parametrize("months", [1, 3, 6, 12])
+def test_loan_repayment_schedule(conn, df, months):
+    loans = df["loans"][df["loans"].loan_status == "active"].copy()
+    loans["last_due"] = pd.to_datetime(loans.start_date).dt.to_period("M") + loans.term_months
+    first = pd.Period(DEMO_TODAY, "M")
+    expected = {}
+    for k in range(1, months + 1):
+        due = loans[loans.last_due >= first + k]
+        expected[str(first + k)] = round(due.monthly_payment.sum(), 2)
+    rows = run_intent(conn, "loan_repayment_schedule", {"months": months}).rows
+    assert {r["month"]: r["expected_repayments"] for r in rows} == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("months", [1, 6, 12])
+def test_balance_trend(conn, df, months):
+    a, t = df["accounts"], df["transactions"]
+    signed = t.amount.where(t.transaction_type == "deposit", -t.amount)
+    flows = t.assign(signed=signed).merge(a[["account_id", "opening_date"]], on="account_id")
+    current = pd.Period(DEMO_TODAY, "M")
+    expected = {}
+    for k in range(months):
+        month = current - k
+        end = min(month.end_time.date(), DEMO_TODAY).isoformat()
+        opened = a[a.opening_date <= end]
+        later = flows[(flows.transaction_date > end) & (flows.opening_date <= end)]
+        expected[str(month)] = round(opened.balance.sum() - later.signed.sum(), 2)
+    rows = run_intent(conn, "balance_trend", {"months": months}).rows
+    assert {r["month"]: r["end_of_month_balance"] for r in rows} == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("name", ["spending_by_category", "loan_repayment_schedule", "balance_trend"])
+def test_new_intents_are_manager_only(name):
+    assert INTENTS[name].allowed_roles == ("manager",)
 
 
 @pytest.mark.parametrize("name", [n for n, i in INTENTS.items() if i.sql])

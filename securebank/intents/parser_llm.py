@@ -7,7 +7,7 @@ message; after that the parser gives up (day 6 adds the embedding fallback).
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
@@ -23,6 +23,7 @@ class ParseOutcome:
     raw: str = ""                   # the model's raw output (for debugging and the report)
     error: str | None = None
     latency_ms: int = 0
+    candidates: list = field(default_factory=list)  # borderline match: intents to ask about
 
 
 def extract_json(raw: str) -> dict:

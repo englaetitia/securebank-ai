@@ -15,6 +15,17 @@ python -m pytest                  # runs the tests
 python scripts/check_gpu.py       # checks the model runs on the GPU
 ```
 
+## Running the app
+
+```powershell
+streamlit run app\streamlit_app.py
+```
+
+Questions and answers work in English, French and Arabic. The embedding parser uses
+`intfloat/multilingual-e5-large` (about 2 GB), downloaded the first time it runs; the
+first question after starting the app takes a minute or two.
+Rebuild the database after pulling new schema changes: `python -m securebank.db.seed`.
+
 ## Demo accounts (fictional)
 
 | Username  | Password       | Role     |

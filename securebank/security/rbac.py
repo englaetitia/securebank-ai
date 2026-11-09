@@ -44,7 +44,14 @@ def allowed_intents(role: str) -> list[Intent]:
     return [i for i in INTENTS.values() if role in i.allowed_roles and i.name != "help"]
 
 
-def help_text(role: str) -> str:
+def help_text(role: str, lang: str = "en") -> str:
+    from securebank import i18n
+    from securebank.intents.examples import example_in
+    if lang != "en":
+        lines = [i18n.message("help_intro", lang, role=i18n.role_name(role, lang))]
+        for intent in allowed_intents(role):
+            lines.append(f"- {i18n.intent_text(intent.name, lang)} (« {example_in(intent.name, lang)} »)")
+        return "\n".join(lines)
     lines = [f"As a {role}, you can ask about:"]
     for intent in allowed_intents(role):
         lines.append(f"- {intent.description} (e.g. \"{intent.examples[0]}\")")

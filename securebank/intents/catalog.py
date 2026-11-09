@@ -158,6 +158,56 @@ INTENTS = {i.name: i for i in [
         examples=("What were the 5 largest transactions this month?",
                   "Show the biggest transactions in October."),
     ),
+    # Added with the multilingual work: bank-wide figures only, for managers.
+    Intent(
+        "spending_by_category", "Withdrawals per spending category in a period",
+        """SELECT category, COUNT(*) AS transaction_count, ROUND(SUM(amount), 2) AS total_spent
+           FROM transactions
+           WHERE transaction_type = 'withdrawal' AND transaction_date BETWEEN :start AND :end
+           GROUP BY category ORDER BY total_spent DESC, category""",
+        (MANAGER,), {"period": Param("period", default="this month")},
+        examples=("What is the monthly spending by category?",
+                  "Show spending by category for October."),
+    ),
+    Intent(
+        "loan_repayment_schedule", "Expected loan repayments per month over the next N months",
+        """SELECT substr(due_month, 1, 7) AS month, COUNT(*) AS installments,
+                  ROUND(SUM(monthly_payment), 2) AS expected_repayments
+           FROM (
+               WITH RECURSIVE n(k) AS (SELECT 1 UNION ALL SELECT k + 1 FROM n WHERE k < :months)
+               SELECT l.monthly_payment,
+                      date(:today, 'start of month', '+' || n.k || ' months') AS due_month
+               FROM loans l JOIN n
+               WHERE l.loan_status = 'active'
+                 AND date(l.start_date, 'start of month', '+' || l.term_months || ' months')
+                     >= date(:today, 'start of month', '+' || n.k || ' months')
+           )
+           GROUP BY month ORDER BY month""",
+        (MANAGER,), {"months": Param("int", default=6, min=1, max=12)},
+        examples=("What is the loan repayment schedule for the next 6 months?",
+                  "How much do we expect in loan repayments per month?"),
+    ),
+    Intent(
+        "balance_trend", "Total balance at the end of each of the last N months",
+        """SELECT month, ROUND(
+                  (SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE opening_date <= month_end)
+                  - (SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'deposit' THEN t.amount
+                                              ELSE -t.amount END), 0)
+                     FROM transactions t JOIN accounts a USING (account_id)
+                     WHERE t.transaction_date > month_end AND a.opening_date <= month_end), 2)
+                  AS end_of_month_balance
+           FROM (
+               WITH RECURSIVE n(k) AS (SELECT 0 UNION ALL SELECT k + 1 FROM n WHERE k + 1 < :months)
+               SELECT substr(date(:today, 'start of month', '-' || k || ' months'), 1, 7) AS month,
+                      min(date(:today, 'start of month', '-' || k || ' months', '+1 month', '-1 day'),
+                          :today) AS month_end
+               FROM n
+           )
+           ORDER BY month""",
+        (MANAGER,), {"months": Param("int", default=6, min=1, max=12)},
+        examples=("How did the total balance change over the last 6 months?",
+                  "Show the balance trend for this year."),
+    ),
     Intent(
         "my_balance", "The logged-in customer's own account balances",
         """SELECT '****' || substr(account_number, -4) AS account, account_type, ROUND(balance, 2) AS balance
@@ -261,6 +311,7 @@ def run_intent(conn: sqlite3.Connection, name: str, raw_params: dict | None = No
     params, period = validate_params(intent, raw_params, today)
 
     sql_params = dict(params)
+    sql_params["today"] = today.isoformat()     # extra named parameters are ignored by sqlite3
     sql_params.pop("period", None)
     if period:
         sql_params.update(period.as_sql_params())

@@ -1,0 +1,95 @@
+{
+  "parser": "embedding",
+  "answers": "template",
+  "test_set": 110,
+  "created": "2026-11-09T09:33:55",
+  "parser_accuracy": {
+    "questions": 110,
+    "intent_accuracy": 0.8636363636363636,
+    "exact_match_accuracy": 0.8636363636363636,
+    "parse_failure_rate": 0.0,
+    "fallback_rate": 0.0,
+    "retry_rate": 0.0,
+    "median_latency_ms": 220.5,
+    "p95_latency_ms": 243,
+    "restricted_missed": 4
+  },
+  "per_intent_accuracy": {
+    "count_new_accounts": 0.8571428571428571,
+    "total_deposits": 0.6666666666666666,
+    "total_withdrawals": 0.8,
+    "transaction_count": 0.75,
+    "count_active_loans": 1.0,
+    "count_customers": 1.0,
+    "avg_loan_amount": 1.0,
+    "total_loan_portfolio": 1.0,
+    "total_balance_by_type": 1.0,
+    "avg_account_balance": 1.0,
+    "new_accounts_trend": 1.0,
+    "largest_transactions": 1.0,
+    "spending_by_category": 0.8333333333333334,
+    "loan_repayment_schedule": 0.75,
+    "balance_trend": 0.5,
+    "my_balance": 1.0,
+    "my_recent_transactions": 1.0,
+    "help": 1.0,
+    "restricted_request": 0.7692307692307693,
+    "out_of_scope": 1.0
+  },
+  "per_language": {
+    "ar": {
+      "questions": 48,
+      "intent_accuracy": 0.8958333333333334,
+      "exact_accuracy": 0.8958333333333334,
+      "answerable_intent_accuracy": 0.9333333333333333,
+      "refusal_label_rate": 0.8888888888888888
+    },
+    "en": {
+      "questions": 14,
+      "intent_accuracy": 0.9285714285714286,
+      "exact_accuracy": 0.9285714285714286,
+      "answerable_intent_accuracy": 0.9090909090909091,
+      "refusal_label_rate": 1.0
+    },
+    "fr": {
+      "questions": 48,
+      "intent_accuracy": 0.8125,
+      "exact_accuracy": 0.8125,
+      "answerable_intent_accuracy": 0.8,
+      "refusal_label_rate": 0.8888888888888888
+    }
+  },
+  "security": {
+    "requests": 330,
+    "leaks": 0,
+    "answered_instead_of_refused": 0,
+    "wrong_role_answers": 0,
+    "clarifying_questions": 0,
+    "by_role": {
+      "manager": {
+        "injection": 1.0,
+        "out_of_scope": 1.0,
+        "restricted": 1.0,
+        "answered_when_allowed": 0.9848484848484849
+      },
+      "employee": {
+        "injection": 1.0,
+        "out_of_scope": 1.0,
+        "restricted": 1.0,
+        "answered_when_allowed": 0.9393939393939394
+      },
+      "customer": {
+        "injection": 1.0,
+        "out_of_scope": 1.0,
+        "restricted": 1.0,
+        "answered_when_allowed": 1.0
+      }
+    },
+    "answer_sources": {
+      "template": 99
+    },
+    "median_request_ms": 228.0,
+    "p95_request_ms": 260
+  },
+  "question_set": "multilingual"
+}

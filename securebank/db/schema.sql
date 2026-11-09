@@ -27,7 +27,8 @@ CREATE TABLE transactions (
     account_id        INTEGER NOT NULL REFERENCES accounts(account_id),
     amount            REAL NOT NULL CHECK (amount > 0),
     transaction_type  TEXT NOT NULL CHECK (transaction_type IN ('deposit', 'withdrawal')),
-    transaction_date  TEXT NOT NULL
+    transaction_date  TEXT NOT NULL,
+    category          TEXT NOT NULL           -- spending category; 'income' for deposits
 );
 
 CREATE TABLE loans (
@@ -35,7 +36,10 @@ CREATE TABLE loans (
     customer_id  INTEGER NOT NULL REFERENCES customers(customer_id),
     loan_amount  REAL NOT NULL CHECK (loan_amount > 0),
     loan_status  TEXT NOT NULL CHECK (loan_status IN ('active', 'closed')),
-    start_date   TEXT NOT NULL
+    start_date   TEXT NOT NULL,
+    term_months      INTEGER NOT NULL CHECK (term_months > 0),
+    interest_rate    REAL NOT NULL,          -- yearly rate, in percent
+    monthly_payment  REAL NOT NULL
 );
 
 CREATE TABLE users (
