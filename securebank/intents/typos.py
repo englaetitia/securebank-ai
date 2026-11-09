@@ -2,13 +2,15 @@
 
 Conservative on purpose. A word is only changed when it is unknown AND one
 small edit away from a word on the banking list below. Names are left alone
-(a capital letter in the middle of a sentence), and refusal words such as
-"password" and "delete" are on the list so a typo cannot slip past the guards.
+(a capital letter in the middle of a sentence). A word that a refusal rule
+catches ("close", "book") is never changed, and misspelled refusal words such as
+"pasword" are corrected, so typo correction cannot slip anything past the guards.
 """
 import re
 
 from securebank.intents.examples import all_examples
 from securebank.intents.lang import normalize_for_rules
+from securebank.intents.rules import forced_intent
 
 TARGETS = {
     # English
@@ -96,7 +98,7 @@ def correct_typos(text: str) -> tuple[str, list[tuple[str, str]]]:
     def replace(match: re.Match) -> str:
         word = match.group()
         normal = normalize_for_rules(word)
-        if len(normal) < 4 or normal in KNOWN or normal in TARGETS:
+        if len(normal) < 4 or normal in KNOWN or normal in TARGETS or forced_intent(word):
             return word
         if match.start() > 0 and word[0].isupper():   # probably a name
             return word

@@ -238,3 +238,15 @@ def test_followup_cannot_get_around_a_refusal_rule(ctx):
     r = ask(ctx["manager"], "delete last month", parser, ctx["conn"], ctx["audit"],
             known_pii=ctx["pii"], context=context)
     assert r.status == "unsupported"
+
+
+@pytest.mark.parametrize("question", ["Close my savings account", "Book a meeting with my bank advisor",
+                                      "Reject the loan", "Annule mon virement"])
+def test_correction_never_changes_a_word_a_refusal_rule_catches(question):
+    assert correct_typos(question) == (question, [])
+
+
+def test_close_my_account_is_refused_through_the_whole_pipeline(ctx):
+    parser = EmbeddingParser(encoder=BagOfWordsEncoder(), threshold=0.3)
+    r = ask(ctx["manager"], "Close my savings account", parser, ctx["conn"], ctx["audit"], known_pii=ctx["pii"])
+    assert r.status == "unsupported" and r.result is None
